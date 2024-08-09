@@ -15,3 +15,4 @@ Route::get('/blogs', [BlogController::class, 'indexsearch'])->name('blogs');
 Route::get('/blogs/{id}', [BlogController::class, 'show'])->name('blogs.show');
 Route::get('/blogs.index', [BlogController::class, 'index'])->name('blogs.index');
 Route::get('/home', [BlogController::class, 'home'])->name('home');
+Route::resource('blogs.index', BlogController::class)->middleware('auth');

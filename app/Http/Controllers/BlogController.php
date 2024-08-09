@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Blog;
@@ -10,30 +9,38 @@ use Illuminate\Support\Facades\Storage;
 class BlogController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Apply authentication middleware to all routes except 'home'.
+     */
+    public function __construct()
+    {
+        $this->middleware('auth')->except(['home', 'search']);
+    }
+
+    /**
+     * Display all users' blogs on the home page.
+     */
+    public function home()
+    {
+        $blogs = Blog::orderBy('created_at', 'desc')->paginate(6);
+        return view('home', compact('blogs'));
+    }
+
+    /**
+     * Display the authenticated user's blogs.
      */
     public function index()
     {
-         
         $blogs = Blog::where('user_id', Auth::id())->orderBy('created_at', 'desc')->paginate(6);
         return view('blogs.index', compact('blogs'));
+    }
 
-    }
-    
-    public function home() {
-        $blogs = Blog::orderBy('created_at', 'desc')
-    ->paginate(6); 
-    return view('home', compact('blogs'));
-    }
-    
-   
     public function create()
     {
         return view('blogs.create');
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created blog in storage.
      */
     public function store(Request $request)
     {
@@ -45,13 +52,13 @@ class BlogController extends Controller
             'photo' => 'nullable|array',
             'photo.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
-        
+
         $blog = new Blog;
         $blog->title_name = $request->input('title_name');
         $blog->author = $request->input('author');
         $blog->content = $request->input('content');
         $blog->published_date = $request->input('published_date');
-    
+
         // Handle file uploads
         if ($request->hasFile('photo')) {
             $photos = [];
@@ -61,26 +68,24 @@ class BlogController extends Controller
             }
             $blog->photo = json_encode($photos);
         }
+
         $blog->user_id = Auth::id();
-    
         $blog->save();
-    
+
         return redirect()->route('blogs.index')->with('success', 'Blog created successfully');
     }
 
     /**
-     * Display the specified resource.
+     * Display a single blog post.
      */
     public function show($id)
     {
         $blog = Blog::findOrFail($id);
         return view('blogs.show', compact('blog'));
-        
     }
-    
 
     /**
-     * Show the form for editing the specified resource.
+     * Show the form for editing a specific blog post.
      */
     public function edit($id)
     {
@@ -89,7 +94,7 @@ class BlogController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update a specific blog post in storage.
      */
     public function update(Request $request, $id)
     {
@@ -100,13 +105,13 @@ class BlogController extends Controller
             'published_date' => 'required|date',
             'photo.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:3000',
         ]);
-    
+
         $blog = Blog::findOrFail($id);
         $blog->title_name = $request->input('title_name');
         $blog->author = $request->input('author');
         $blog->content = $request->input('content');
         $blog->published_date = $request->input('published_date');
-    
+
         // Handle file uploads
         if ($request->hasFile('photo')) {
             // Optionally delete old photos if needed
@@ -115,7 +120,7 @@ class BlogController extends Controller
                     Storage::delete($oldPhoto);
                 }
             }
-    
+
             $photos = [];
             foreach ($request->file('photo') as $photo) {
                 $path = $photo->store('public/photos');
@@ -123,43 +128,54 @@ class BlogController extends Controller
             }
             $blog->photo = json_encode($photos);
         }
-    
+
         $blog->save();
-    
+
         return redirect()->route('blogs.index')->with('success', 'Blog updated successfully');
     }
+
     /**
-     * Remove the specified resource from storage.
+     * Remove a specific blog post from storage.
      */
     public function destroy($id)
     {
         $blog = Blog::findOrFail($id);
 
-        $blog->delete();
         // Optionally delete photos if needed
-        return redirect()->to('blogs');
+        if ($blog->photo) {
+            foreach (json_decode($blog->photo) as $photo) {
+                Storage::delete($photo);
+            }
+        }
 
+        $blog->delete();
+
+        return redirect()->route('blogs.index')->with('success', 'Blog deleted successfully');
     }
 
+    /**
+     * Search through all users' blogs on the home page.
+     */
     public function search(Request $request)
     {
         $query = $request->input('query');
         $blogs = Blog::where('title_name', 'like', "%{$query}%")
-        ->orderBy('created_at', 'desc')          
-        ->paginate(5);
+            ->orderBy('created_at', 'desc')
+            ->paginate(5);
         return view('home', compact('blogs'));
     }
-    
+
+    /**
+     * Search through the authenticated user's blogs.
+     */
     public function indexsearch(Request $request)
     {
         $query = $request->input('query');
-        $user = Auth::id();
-        $blogs = Blog::where('title_name', 'like', "%{$query}%")
-        ->orderBy('created_at', 'desc')             
-        ->paginate(5);
-        
+        $blogs = Blog::where('user_id', Auth::id())
+            ->where('title_name', 'like', "%{$query}%")
+            ->orderBy('created_at', 'desc')
+            ->paginate(5);
+
         return view('blogs.index', compact('blogs'));
     }
-    
-
 }
